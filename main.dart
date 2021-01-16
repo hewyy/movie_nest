@@ -1,117 +1,237 @@
+import 'dart:convert';
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:project_1/app/services/api_keys.dart';
+import 'package:project_1/filmtile.dart';
+
+import 'package:http/http.dart' as http;
+
+List<FilmTile> filmQ = List<FilmTile>();
+List<FilmTile> currentList = List<FilmTile>();
+List<FilmTile> searchList = List<FilmTile>();
+List<FilmTile> seenList = List<FilmTile>();
+TextEditingController searchText = new TextEditingController();
 
 void main() {
-  runApp(NextFlixApp());
+  runApp(MyApp());
 }
 
-class NextFlixApp extends StatelessWidget {
-  // This widget is the root of your application.
+class MyApp extends StatelessWidget {
+  //this runs whenever the widget needs to be rendered on the screen
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-        // This makes the visual density adapt to the platform that you run
-        // the app on. For desktop platforms, the controls will be smaller and
-        // closer together (more dense) than on mobile platforms.
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: MyHomePage(title: 'Demo Home Page'),
+      debugShowCheckedModeBanner: false,
+      title: 'Queue',
+      home: MyStatefulWidget(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class MyStatefulWidget extends StatefulWidget {
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _MyStatefulWidgetState createState() => _MyStatefulWidgetState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _MyStatefulWidgetState extends State<MyStatefulWidget> {
+  int _selectedIndex = 0;
+  bool showNav = true;
+  bool showCancel = false;
+  String lastSearch;
+  FocusScopeNode prevFocus;
+  String searchBarHint = "Search movie titles";
 
-  void _incrementCounter() {
+  //static const TextStyle optionStyle = TextStyle(fontSize: 30, fontWeight: FontWeight.bold);
+
+  void _onItemTapped(int index) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter = _counter + 2;
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        currentList = List.from(filmQ);
+        searchBarHint = "Search movie titles";
+        break;
+      case 2:
+        currentList = List.from(seenList);
+        searchBarHint = "Search seen titles";
+        break;
+      default:
+        //MAKE THIS BETTER
+        currentList = List<FilmTile>();
+    }
+  }
+
+  void _updateFromSearch() {
+    setState(() {
+      _selectedIndex = _selectedIndex;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
+        //TODO: add action buttions for the dot menu
+        toolbarHeight: 108,
+        title: SizedBox(
+          height: kToolbarHeight,
+          child: Align(
+            alignment: Alignment.center,
+            child: Image(
+              image: NetworkImage(
+                  "https://img.icons8.com/ios/100/000000/nest.png"),
+              width: 120,
+              height: 120,
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
+          ),
+        ),
+        backgroundColor: Colors.blue[300],
+        bottom: PreferredSize(
+          preferredSize: null,
+          child: Container(
+            width: 350,
+            child: Padding(
+              padding: EdgeInsets.all(10),
+              child: TextField(
+                //this is for the enter key to run
+                textInputAction: TextInputAction.go,
+                onSubmitted: (value) {
+                  runSearch();
+                },
+                autofocus: false,
+                onTap: () {
+                  FocusScopeNode currentFocus = FocusScope.of(context);
+                  showCancel = true;
+                  if (currentFocus == prevFocus) {
+                    currentFocus.unfocus();
+                    prevFocus = null;
+                    showCancel = false;
+                    return;
+                  }
+                  currentList = List.from(searchList);
+                  prevFocus = FocusScope.of(context);
+
+                  hindNavFunc();
+                },
+                controller: searchText,
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  hintText: searchBarHint,
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Colors.black,
+                  ),
+                  suffixIcon: Visibility(
+                      visible: showCancel,
+                      child: IconButton(
+                        icon: Icon(Icons.cancel),
+                        onPressed: cancelPressed,
+                      )),
+                ),
+              ),
             ),
-          ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      body: ListView.builder(
+        itemCount: currentList.length,
+        itemBuilder: (context, index) {
+          return Card(
+            child: currentList[index],
+            shadowColor: Colors.black,
+          );
+        },
+      ),
+      backgroundColor: Colors.white,
+      bottomNavigationBar: Visibility(
+        visible: showNav,
+        child: BottomNavigationBar(
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.list),
+              label: 'Queue',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Discovery',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.lock_clock),
+              label: 'Seen',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          selectedItemColor: Colors.blue[300],
+          unselectedItemColor: Colors.white70,
+          onTap: _onItemTapped,
+          backgroundColor: Colors.black87,
+        ),
+      ),
     );
+  }
+
+  void orderAction(String choice) {
+    print("you want to order it by " + choice);
+  }
+
+  void showNavFunc() {
+    showNav = true;
+    _updateFromSearch();
+  }
+
+  void hindNavFunc() {
+    showNav = false;
+    _updateFromSearch();
+  }
+
+  void cancelPressed() {
+    searchList.clear();
+    searchText.clear();
+    currentList.clear();
+    currentList = List.from(filmQ);
+    showNavFunc();
+  }
+
+  Future<void> runSearch() async {
+    searchList.clear();
+    currentList.clear();
+    lastSearch = searchText.text;
+    var got = await http.get(
+        "https://api.themoviedb.org/3/search/movie?api_key=" +
+            APIKeys.movieLookupKey +
+            "&language=en-US&query=" +
+            searchText.text +
+            "&page=1&include_adult=true");
+    //print(got.body.toString());
+    var jgot = jsonDecode(got.body);
+    //TODO: figure out how to get spesifics from the JSON file
+    for (var i = 0; i < double.maxFinite; i++) {
+      try {
+        var title = jgot['results'][i]['original_title'];
+        var year = DateTime.parse(jgot['results'][i]['release_date']).year;
+        var url = "https://image.tmdb.org/t/p/w500/" +
+            jgot['results'][i]['poster_path'];
+
+        int id = jgot['results'][i]['id'];
+        searchList.add(FilmTile(title, year, url, id));
+      } catch (_) {
+        if (searchList.isEmpty) {
+          print("no results found");
+        } else {
+          currentList = List.from(searchList);
+          print("all titles added!");
+        }
+        break;
+      }
+    }
+    showCancel = true;
+    _updateFromSearch();
   }
 }
